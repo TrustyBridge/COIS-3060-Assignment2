@@ -13,12 +13,12 @@
 
 ## Student Details
 
-- **Student #:** <write_your_id_here>
-- **Student Name:** <write_your_name_here>
+- **Student #:** 0724527
+- **Student Name:** Tristan Berridge
 
 ## Paradigm Pair Chosen
 
-> e.g., Functional (e.g., Haskell) vs. Logic (Prolog)
+Aspect Oriented vs Object Oriented
 
 ## How to Reproduce data collection, analysis, and results
 
