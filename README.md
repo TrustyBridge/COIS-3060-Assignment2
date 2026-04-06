@@ -18,7 +18,12 @@
 
 ## Paradigm Pair Chosen
 
-Aspect Oriented vs Object Oriented
+Anylize Aspect Oriented vs Object Oriented
+for the purpose of comparing their software quality and evolution properties
+with respect to code churn, and complexity metrics
+from the viewpoint of software engineering researchers
+in the context of GitHub-hosted open-source projects
+
 
 ## How to Reproduce data collection, analysis, and results
 
