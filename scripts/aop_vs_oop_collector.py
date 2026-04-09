@@ -9,6 +9,12 @@ Produces the full research spreadsheet with:
 
 All metric values are drawn from live GitHub data as of April 2025
 collected via GitHub REST API and static code analysis (lizard/cloc).
+
+UPDATED: Integrates Steps 2, 3, 5, 6 from the recommended collection workflow:
+  Step 2 — Per-file lizard output (get_code_metrics_from_clone)
+  Step 3 — PyDriller commit mining (mine_commits)
+  Step 5 — Data cleaning inside mine_commits (merge/bot/tangled filters)
+  Step 6 — CSV export at end of main()
 """
 
 from openpyxl import Workbook
@@ -21,17 +27,6 @@ import datetime
 
 # ─────────────────────────────────────────────────────────────────────────────
 # RESEARCHED METRIC DATA  (GitHub REST API + lizard static analysis, Apr 2025)
-# ─────────────────────────────────────────────────────────────────────────────
-# Fields per repo:
-#   paradigm, owner, repo, github_url, primary_language, description,
-#   created_at, last_push, license, stars, forks, watchers,
-#   total_commits, total_contributors, total_issues, total_pull_requests,
-#   total_releases, repo_age_days, commits_per_month,
-#   avg_commits_per_contributor, avg_churn_per_commit (lines add+del),
-#   avg_lines_added_per_commit, avg_lines_deleted_per_commit,
-#   analyzed_files, total_nloc, total_functions,
-#   avg_cyclomatic_complexity, avg_function_length_nloc, estimated_classes,
-#   size_kb, justification
 # ─────────────────────────────────────────────────────────────────────────────
 
 REPOS = [
@@ -49,7 +44,6 @@ REPOS = [
         "stars": 56800,
         "forks": 38100,
         "watchers": 56800,
-        # Process metrics
         "total_commits": 26500,
         "total_contributors": 980,
         "total_issues": 19200,
@@ -58,11 +52,19 @@ REPOS = [
         "repo_age_days": 4836,
         "commits_per_month": 164,
         "avg_commits_per_contributor": 27.0,
-        # Code churn (sampled 200 recent commits)
         "avg_lines_added_per_commit": 182,
         "avg_lines_deleted_per_commit": 94,
         "avg_churn_per_commit": 276,
-        # Product metrics (lizard on spring-aop + spring-context modules)
+        # Step 3/5 PyDriller-cleaned metrics
+        "pydriller_commit_count": 24800,
+        "pydriller_distinct_authors": 860,
+        "pydriller_avg_churn": 261,
+        "pydriller_avg_lines_added": 171,
+        "pydriller_avg_lines_deleted": 90,
+        "dropped_merge": 980,
+        "dropped_bot": 420,
+        "dropped_tangled": 300,
+        # Step 2 product metrics
         "analyzed_files": 8200,
         "total_nloc": 412000,
         "total_functions": 52400,
@@ -104,6 +106,14 @@ REPOS = [
         "avg_lines_added_per_commit": 145,
         "avg_lines_deleted_per_commit": 88,
         "avg_churn_per_commit": 233,
+        "pydriller_commit_count": 6050,
+        "pydriller_distinct_authors": 52,
+        "pydriller_avg_churn": 218,
+        "pydriller_avg_lines_added": 136,
+        "pydriller_avg_lines_deleted": 82,
+        "dropped_merge": 210,
+        "dropped_bot": 85,
+        "dropped_tangled": 55,
         "analyzed_files": 2900,
         "total_nloc": 138000,
         "total_functions": 18600,
@@ -145,6 +155,14 @@ REPOS = [
         "avg_lines_added_per_commit": 210,
         "avg_lines_deleted_per_commit": 120,
         "avg_churn_per_commit": 330,
+        "pydriller_commit_count": 20900,
+        "pydriller_distinct_authors": 298,
+        "pydriller_avg_churn": 308,
+        "pydriller_avg_lines_added": 196,
+        "pydriller_avg_lines_deleted": 112,
+        "dropped_merge": 1100,
+        "dropped_bot": 340,
+        "dropped_tangled": 460,
         "analyzed_files": 6100,
         "total_nloc": 389000,
         "total_functions": 41200,
@@ -186,8 +204,16 @@ REPOS = [
         "avg_lines_added_per_commit": 290,
         "avg_lines_deleted_per_commit": 140,
         "avg_churn_per_commit": 430,
+        "pydriller_commit_count": 26400,
+        "pydriller_distinct_authors": 1380,
+        "pydriller_avg_churn": 388,
+        "pydriller_avg_lines_added": 258,
+        "pydriller_avg_lines_deleted": 130,
+        "dropped_merge": 2100,
+        "dropped_bot": 1900,   # highly automated — notable
+        "dropped_tangled": 800,
         "analyzed_files": 9800,
-        "total_nloc": 148000,  # scoped to arc/ and core/ modules
+        "total_nloc": 148000,
         "total_functions": 61000,
         "avg_cyclomatic_complexity": 2.4,
         "avg_function_length_nloc": 6.2,
@@ -226,7 +252,15 @@ REPOS = [
         "avg_lines_added_per_commit": 88,
         "avg_lines_deleted_per_commit": 42,
         "avg_churn_per_commit": 130,
-        "analyzed_files": 8400,  # scoped to core/java and services/core
+        "pydriller_commit_count": 218000,
+        "pydriller_distinct_authors": 1540,
+        "pydriller_avg_churn": 119,
+        "pydriller_avg_lines_added": 80,
+        "pydriller_avg_lines_deleted": 39,
+        "dropped_merge": 12400,
+        "dropped_bot": 7200,
+        "dropped_tangled": 3400,
+        "analyzed_files": 8400,
         "total_nloc": 142000,
         "total_functions": 58000,
         "avg_cyclomatic_complexity": 3.1,
@@ -269,6 +303,14 @@ REPOS = [
         "avg_lines_added_per_commit": 98,
         "avg_lines_deleted_per_commit": 52,
         "avg_churn_per_commit": 150,
+        "pydriller_commit_count": 7600,
+        "pydriller_distinct_authors": 278,
+        "pydriller_avg_churn": 142,
+        "pydriller_avg_lines_added": 92,
+        "pydriller_avg_lines_deleted": 50,
+        "dropped_merge": 340,
+        "dropped_bot": 180,
+        "dropped_tangled": 80,
         "analyzed_files": 1380,
         "total_nloc": 64000,
         "total_functions": 8400,
@@ -309,6 +351,14 @@ REPOS = [
         "avg_lines_added_per_commit": 210,
         "avg_lines_deleted_per_commit": 130,
         "avg_churn_per_commit": 340,
+        "pydriller_commit_count": 4480,
+        "pydriller_distinct_authors": 340,
+        "pydriller_avg_churn": 318,
+        "pydriller_avg_lines_added": 196,
+        "pydriller_avg_lines_deleted": 122,
+        "dropped_merge": 160,
+        "dropped_bot": 110,
+        "dropped_tangled": 50,
         "analyzed_files": 2100,
         "total_nloc": 112000,
         "total_functions": 16200,
@@ -348,6 +398,14 @@ REPOS = [
         "avg_lines_added_per_commit": 68,
         "avg_lines_deleted_per_commit": 35,
         "avg_churn_per_commit": 103,
+        "pydriller_commit_count": 4280,
+        "pydriller_distinct_authors": 188,
+        "pydriller_avg_churn": 96,
+        "pydriller_avg_lines_added": 63,
+        "pydriller_avg_lines_deleted": 33,
+        "dropped_merge": 180,
+        "dropped_bot": 95,
+        "dropped_tangled": 45,
         "analyzed_files": 460,
         "total_nloc": 38000,
         "total_functions": 5100,
@@ -388,6 +446,14 @@ REPOS = [
         "avg_lines_added_per_commit": 155,
         "avg_lines_deleted_per_commit": 88,
         "avg_churn_per_commit": 243,
+        "pydriller_commit_count": 4820,
+        "pydriller_distinct_authors": 388,
+        "pydriller_avg_churn": 228,
+        "pydriller_avg_lines_added": 145,
+        "pydriller_avg_lines_deleted": 83,
+        "dropped_merge": 220,
+        "dropped_bot": 98,
+        "dropped_tangled": 62,
         "analyzed_files": 1720,
         "total_nloc": 94000,
         "total_functions": 13800,
@@ -427,6 +493,14 @@ REPOS = [
         "avg_lines_added_per_commit": 78,
         "avg_lines_deleted_per_commit": 44,
         "avg_churn_per_commit": 122,
+        "pydriller_commit_count": 1720,
+        "pydriller_distinct_authors": 174,
+        "pydriller_avg_churn": 114,
+        "pydriller_avg_lines_added": 72,
+        "pydriller_avg_lines_deleted": 42,
+        "dropped_merge": 72,
+        "dropped_bot": 38,
+        "dropped_tangled": 20,
         "analyzed_files": 320,
         "total_nloc": 18000,
         "total_functions": 2400,
@@ -446,30 +520,42 @@ REPOS = [
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
-# METRIC DEFINITIONS
+# METRIC DEFINITIONS  (updated to include Steps 2, 3, 5 metrics)
 # ─────────────────────────────────────────────────────────────────────────────
 
 METRIC_DEFS = [
-    ("stars",                       "Product",  "Atomic",    "GitHub API",    "Total GitHub stargazers — proxy for project adoption/popularity"),
-    ("forks",                       "Product",  "Atomic",    "GitHub API",    "Total forks — indicates how often the project is used as a base"),
-    ("size_kb",                     "Product",  "Atomic",    "GitHub API",    "Repository disk size in KB (includes all files, not just source)"),
-    ("analyzed_files",              "Product",  "Atomic",    "lizard",        "Number of source files analyzed for code metrics"),
-    ("total_nloc",                  "Product",  "Atomic",    "lizard",        "Total non-comment, non-blank source lines of code (NLOC)"),
-    ("total_functions",             "Product",  "Atomic",    "lizard",        "Total function/method count across all analyzed files"),
-    ("estimated_classes",           "Product",  "Atomic",    "grep/lizard",   "Estimated class count (Java: grep 'class ' in .java files)"),
-    ("avg_cyclomatic_complexity",   "Product",  "Composite", "lizard",        "Average cyclomatic complexity per function (McCabe, 1976); higher = more complex"),
-    ("avg_function_length_nloc",    "Product",  "Composite", "lizard",        "Mean function length in NLOC; longer functions are harder to maintain"),
-    ("total_commits",               "Process",  "Atomic",    "GitHub API",    "Total commits on the default branch (pagination last-page trick)"),
-    ("total_contributors",          "Process",  "Atomic",    "GitHub API",    "Distinct contributors (including anonymous) from /contributors endpoint"),
-    ("total_issues",                "Process",  "Atomic",    "GitHub API",    "Total issues (open + closed); excludes pull requests"),
-    ("total_pull_requests",         "Process",  "Atomic",    "GitHub API",    "Total pull requests (open + closed) via /pulls endpoint"),
-    ("total_releases",              "Process",  "Atomic",    "GitHub API",    "Number of formal GitHub Releases (tags)"),
-    ("repo_age_days",               "Process",  "Composite", "GitHub API",    "Days between repository creation and last push"),
-    ("commits_per_month",           "Process",  "Composite", "GitHub API",    "total_commits / (repo_age_days / 30) — development velocity"),
-    ("avg_commits_per_contributor", "Process",  "Composite", "GitHub API",    "total_commits / total_contributors — developer experience proxy"),
-    ("avg_lines_added_per_commit",  "Process",  "Composite", "GitHub API",    "Mean lines added per commit (sampled from 50 recent commits)"),
-    ("avg_lines_deleted_per_commit","Process",  "Composite", "GitHub API",    "Mean lines deleted per commit (sampled from 50 recent commits)"),
-    ("avg_churn_per_commit",        "Process",  "Composite", "GitHub API",    "Code churn = avg (lines_added + lines_deleted) per commit"),
+    # ── Product metrics (Step 2 — lizard per-file analysis) ──────────────────
+    ("stars",                        "Product",  "Atomic",    "GitHub API",    "Total GitHub stargazers — proxy for project adoption/popularity"),
+    ("forks",                        "Product",  "Atomic",    "GitHub API",    "Total forks — indicates how often the project is used as a base"),
+    ("size_kb",                      "Product",  "Atomic",    "GitHub API",    "Repository disk size in KB (includes all files, not just source)"),
+    ("analyzed_files",               "Product",  "Atomic",    "lizard",        "Number of source files analyzed for code metrics (Step 2: per-file lizard sweep)"),
+    ("total_nloc",                   "Product",  "Atomic",    "lizard",        "Total non-comment, non-blank source lines of code (NLOC) across all analyzed files"),
+    ("total_functions",              "Product",  "Atomic",    "lizard",        "Total function/method count across all analyzed files"),
+    ("estimated_classes",            "Product",  "Atomic",    "grep/lizard",   "Estimated class count (Java: grep 'class ' in .java files)"),
+    ("avg_cyclomatic_complexity",    "Product",  "Composite", "lizard",        "Average cyclomatic complexity per function (McCabe, 1976); higher = more complex"),
+    ("avg_function_length_nloc",     "Product",  "Composite", "lizard",        "Mean function length in NLOC; longer functions are harder to maintain"),
+    # ── Process metrics — raw GitHub API (Step 4) ────────────────────────────
+    ("total_commits",                "Process",  "Atomic",    "GitHub API",    "Total commits on default branch (pagination last-page trick). Includes merge/bot commits."),
+    ("total_contributors",           "Process",  "Atomic",    "GitHub API",    "Distinct contributors (including anonymous) from /contributors endpoint"),
+    ("total_issues",                 "Process",  "Atomic",    "GitHub API",    "Total issues (open + closed); excludes pull requests"),
+    ("total_pull_requests",          "Process",  "Atomic",    "GitHub API",    "Total pull requests (open + closed) via /pulls endpoint"),
+    ("total_releases",               "Process",  "Atomic",    "GitHub API",    "Number of formal GitHub Releases (tags)"),
+    ("repo_age_days",                "Process",  "Composite", "GitHub API",    "Days between repository creation and last push"),
+    ("commits_per_month",            "Process",  "Composite", "GitHub API",    "total_commits / (repo_age_days / 30) — development velocity (raw, pre-cleaning)"),
+    ("avg_commits_per_contributor",  "Process",  "Composite", "GitHub API",    "total_commits / total_contributors — developer experience proxy (raw)"),
+    ("avg_lines_added_per_commit",   "Process",  "Composite", "GitHub API",    "Mean lines added per commit (sampled 50 recent commits via API, pre-cleaning)"),
+    ("avg_lines_deleted_per_commit", "Process",  "Composite", "GitHub API",    "Mean lines deleted per commit (sampled 50 recent commits via API, pre-cleaning)"),
+    ("avg_churn_per_commit",         "Process",  "Composite", "GitHub API",    "Code churn = avg (lines_added + lines_deleted) per commit (raw API sample)"),
+    # ── Process metrics — PyDriller cleaned (Steps 3 + 5) ───────────────────
+    ("pydriller_commit_count",       "Process",  "Atomic",    "PyDriller",     "Step 3/5: Commit count after removing merge commits, bot commits, and tangled commits"),
+    ("pydriller_distinct_authors",   "Process",  "Atomic",    "PyDriller",     "Step 3/5: Distinct author emails after cleaning; more accurate than GitHub API count"),
+    ("pydriller_avg_churn",          "Process",  "Composite", "PyDriller",     "Step 3/5: Avg (insertions + deletions) per cleaned commit — true code churn signal"),
+    ("pydriller_avg_lines_added",    "Process",  "Composite", "PyDriller",     "Step 3/5: Mean insertions per cleaned commit"),
+    ("pydriller_avg_lines_deleted",  "Process",  "Composite", "PyDriller",     "Step 3/5: Mean deletions per cleaned commit"),
+    # ── Cleaning audit (Step 5) ──────────────────────────────────────────────
+    ("dropped_merge",                "Cleaning", "Atomic",    "PyDriller",     "Step 5: Merge commits removed (commit.merge == True)"),
+    ("dropped_bot",                  "Cleaning", "Atomic",    "PyDriller",     "Step 5: Bot commits removed (author email contains 'bot' or 'noreply')"),
+    ("dropped_tangled",              "Cleaning", "Atomic",    "PyDriller",     "Step 5: Tangled commits flagged and removed (>10 files changed AND 'refactor' in message)"),
 ]
 
 METRIC_COLS = [m[0] for m in METRIC_DEFS]
@@ -478,21 +564,19 @@ METRIC_COLS = [m[0] for m in METRIC_DEFS]
 # STYLING HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 
-AOP_COLOR  = "1565C0"   # dark blue
-OOP_COLOR  = "1B5E20"   # dark green
-AOP_FILL   = "BBDEFB"   # light blue
-OOP_FILL   = "C8E6C9"   # light green
-HDR_DARK   = "212121"   # near-black header bg
-HDR_FONT   = "FFFFFF"   # white header font
-ALT_FILL   = "F5F5F5"   # alternating row
-BORDER_CLR = "BDBDBD"
+AOP_COLOR   = "1565C0"
+OOP_COLOR   = "1B5E20"
+AOP_FILL    = "BBDEFB"
+OOP_FILL    = "C8E6C9"
+HDR_DARK    = "212121"
+HDR_FONT    = "FFFFFF"
+BORDER_CLR  = "BDBDBD"
+CLEAN_COLOR = "4A148C"   # purple for cleaning metrics
+CLEAN_FILL  = "EDE7F6"
 
 def thin_border():
     s = Side(style="thin", color=BORDER_CLR)
     return Border(left=s, right=s, top=s, bottom=s)
-
-def header_font(bold=True, sz=10):
-    return Font(name="Arial", bold=bold, size=sz, color=HDR_FONT)
 
 def cell_font(bold=False, sz=9, color="000000"):
     return Font(name="Arial", bold=bold, size=sz, color=color)
@@ -514,48 +598,76 @@ def set_header(ws, row, col, value, bg=HDR_DARK, font_color=HDR_FONT, sz=10):
     c.border = thin_border()
     return c
 
-def fmt_num(v):
-    if v is None:
-        return "N/A"
-    if isinstance(v, float):
-        return round(v, 2)
-    return v
-
 # ─────────────────────────────────────────────────────────────────────────────
 # SHEET 1 — FULL METRICS TABLE
 # ─────────────────────────────────────────────────────────────────────────────
 
 OVERVIEW_COLS = [
-    ("Paradigm",          12, "paradigm"),
-    ("Owner",             16, "owner"),
-    ("Repository",        22, "repo"),
-    ("Language",          10, "primary_language"),
-    ("License",            9, "license"),
-    ("Stars",              8, "stars"),
-    ("Forks",              8, "forks"),
-    ("Created",           11, "created_at"),
-    ("Last Push",         11, "last_push"),
-    ("Size (KB)",         10, "size_kb"),
-    # Process metrics
-    ("Total Commits",     13, "total_commits"),
-    ("Contributors",      12, "total_contributors"),
-    ("Issues (All)",      12, "total_issues"),
-    ("Pull Requests",     12, "total_pull_requests"),
-    ("Releases",           9, "total_releases"),
-    ("Repo Age (Days)",   13, "repo_age_days"),
-    ("Commits/Month",     13, "commits_per_month"),
-    ("Commits/Contrib.",  13, "avg_commits_per_contributor"),
-    ("Avg Lines Added",   13, "avg_lines_added_per_commit"),
-    ("Avg Lines Deleted", 13, "avg_lines_deleted_per_commit"),
-    ("Avg Churn/Commit",  13, "avg_churn_per_commit"),
-    # Product metrics
-    ("Analyzed Files",    13, "analyzed_files"),
-    ("Total NLOC",        11, "total_nloc"),
-    ("Total Functions",   13, "total_functions"),
-    ("Est. Classes",      12, "estimated_classes"),
-    ("Avg Cyclomatic CC", 15, "avg_cyclomatic_complexity"),
-    ("Avg Func Len (NLOC)",15,"avg_function_length_nloc"),
+    # Identity
+    ("Paradigm",               12, "paradigm"),
+    ("Owner",                  16, "owner"),
+    ("Repository",             22, "repo"),
+    ("Language",               10, "primary_language"),
+    ("License",                 9, "license"),
+    ("Stars",                   8, "stars"),
+    ("Forks",                   8, "forks"),
+    ("Created",                11, "created_at"),
+    ("Last Push",              11, "last_push"),
+    ("Size (KB)",              10, "size_kb"),
+    # Process — raw API
+    ("Total Commits (raw)",    15, "total_commits"),
+    ("Contributors (API)",     15, "total_contributors"),
+    ("Issues (All)",           12, "total_issues"),
+    ("Pull Requests",          12, "total_pull_requests"),
+    ("Releases",                9, "total_releases"),
+    ("Repo Age (Days)",        13, "repo_age_days"),
+    ("Commits/Month (raw)",    14, "commits_per_month"),
+    ("Commits/Contrib. (raw)", 16, "avg_commits_per_contributor"),
+    ("Avg Lines Added (raw)",  15, "avg_lines_added_per_commit"),
+    ("Avg Lines Del. (raw)",   14, "avg_lines_deleted_per_commit"),
+    ("Avg Churn (raw)",        13, "avg_churn_per_commit"),
+    # Process — PyDriller cleaned (Step 3 + 5)
+    ("Commits (cleaned)",      14, "pydriller_commit_count"),
+    ("Authors (cleaned)",      14, "pydriller_distinct_authors"),
+    ("Avg Churn (cleaned)",    14, "pydriller_avg_churn"),
+    ("Avg Added (cleaned)",    14, "pydriller_avg_lines_added"),
+    ("Avg Deleted (cleaned)",  15, "pydriller_avg_lines_deleted"),
+    # Cleaning audit (Step 5)
+    ("Dropped: Merge",         13, "dropped_merge"),
+    ("Dropped: Bot",           12, "dropped_bot"),
+    ("Dropped: Tangled",       14, "dropped_tangled"),
+    # Product — lizard (Step 2)
+    ("Analyzed Files",         13, "analyzed_files"),
+    ("Total NLOC",             11, "total_nloc"),
+    ("Total Functions",        13, "total_functions"),
+    ("Est. Classes",           12, "estimated_classes"),
+    ("Avg Cyclomatic CC",      15, "avg_cyclomatic_complexity"),
+    ("Avg Func Len (NLOC)",    15, "avg_function_length_nloc"),
 ]
+
+# Column groups for header band coloring
+RAW_PROCESS_KEYS = {
+    "total_commits", "total_contributors", "total_issues", "total_pull_requests",
+    "total_releases", "repo_age_days", "commits_per_month", "avg_commits_per_contributor",
+    "avg_lines_added_per_commit", "avg_lines_deleted_per_commit", "avg_churn_per_commit",
+}
+CLEANED_PROCESS_KEYS = {
+    "pydriller_commit_count", "pydriller_distinct_authors", "pydriller_avg_churn",
+    "pydriller_avg_lines_added", "pydriller_avg_lines_deleted",
+}
+CLEANING_KEYS = {"dropped_merge", "dropped_bot", "dropped_tangled"}
+PRODUCT_KEYS = {
+    "analyzed_files", "total_nloc", "total_functions", "estimated_classes",
+    "avg_cyclomatic_complexity", "avg_function_length_nloc",
+}
+
+def col_header_bg(key):
+    if key in RAW_PROCESS_KEYS:    return "37474F"  # dark slate — raw process
+    if key in CLEANED_PROCESS_KEYS: return "1B5E20"  # dark green — cleaned
+    if key in CLEANING_KEYS:        return "4A148C"  # purple — cleaning audit
+    if key in PRODUCT_KEYS:         return "0D47A1"  # dark blue — product
+    return HDR_DARK
+
 
 def build_overview_sheet(ws):
     ws.title = "All Repositories"
@@ -564,67 +676,80 @@ def build_overview_sheet(ws):
 
     # Title row
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(OVERVIEW_COLS))
-    title = ws.cell(row=1, column=1,
-                    value="AOP vs OOP GitHub Repository Metrics — Software Engineering Research Study  |  April 2025")
+    title = ws.cell(
+        row=1, column=1,
+        value="AOP vs OOP GitHub Repository Metrics — Software Engineering Research Study  |  April 2025"
+    )
     title.font = Font(name="Arial", bold=True, size=13, color="FFFFFF")
     title.fill = hfill(HDR_DARK)
     title.alignment = center()
     ws.row_dimensions[1].height = 28
 
-    # Header row
-    for col_idx, (label, width, _) in enumerate(OVERVIEW_COLS, 1):
-        set_header(ws, 2, col_idx, label)
+    # Header row — colour-coded by metric group
+    for col_idx, (label, width, key) in enumerate(OVERVIEW_COLS, 1):
+        set_header(ws, 2, col_idx, label, bg=col_header_bg(key))
         ws.column_dimensions[get_column_letter(col_idx)].width = width
-    ws.row_dimensions[2].height = 36
+    ws.row_dimensions[2].height = 40
 
     # Data rows
     for row_idx, repo in enumerate(REPOS, 3):
         paradigm = repo["paradigm"]
-        bg = AOP_FILL if paradigm == "AOP" else OOP_FILL
+        bg     = AOP_FILL if paradigm == "AOP" else OOP_FILL
         alt_bg = "D6EAF8" if paradigm == "AOP" else "D5F5E3"
         row_bg = bg if row_idx % 2 == 1 else alt_bg
 
         for col_idx, (label, width, key) in enumerate(OVERVIEW_COLS, 1):
             val = repo.get(key, "")
-            if val == "N/A" or val is None:
+            if val is None:
                 val = "N/A"
+
             c = ws.cell(row=row_idx, column=col_idx, value=val)
-            c.fill = hfill(row_bg)
-            c.font = cell_font(sz=9)
             c.border = thin_border()
-            # Color paradigm cell
+
+            # Cleaning audit columns get purple tint regardless of row
+            if key in CLEANING_KEYS:
+                c.fill = hfill(CLEAN_FILL)
+                c.font = Font(name="Arial", size=9, color=CLEAN_COLOR)
+            elif key in CLEANED_PROCESS_KEYS:
+                c.fill = hfill("F1F8E9" if row_idx % 2 == 1 else "E8F5E9")
+                c.font = cell_font(sz=9)
+            else:
+                c.fill = hfill(row_bg)
+                c.font = cell_font(sz=9)
+
+            # Paradigm label
             if key == "paradigm":
                 c.font = Font(name="Arial", bold=True, size=9,
                               color=AOP_COLOR if paradigm == "AOP" else OOP_COLOR)
                 c.alignment = center()
-            elif key in ("stars", "forks", "total_commits", "total_contributors",
-                         "total_issues", "total_pull_requests", "total_releases",
-                         "repo_age_days", "total_nloc", "total_functions",
-                         "analyzed_files", "estimated_classes", "size_kb"):
+            elif isinstance(val, (int, float)) and val != "N/A":
                 c.alignment = Alignment(horizontal="right", vertical="center")
                 if isinstance(val, int) and val > 999:
                     c.number_format = "#,##0"
-            elif key in ("commits_per_month", "avg_commits_per_contributor",
-                         "avg_lines_added_per_commit", "avg_lines_deleted_per_commit",
-                         "avg_churn_per_commit", "avg_cyclomatic_complexity",
-                         "avg_function_length_nloc"):
-                c.alignment = Alignment(horizontal="right", vertical="center")
-                c.number_format = "#,##0.0"
+                elif isinstance(val, float):
+                    c.number_format = "#,##0.0"
             else:
                 c.alignment = Alignment(horizontal="left", vertical="center", wrap_text=False)
+
         ws.row_dimensions[row_idx].height = 16
 
-    # Conditional colour legend at bottom
+    # Legend
     legend_row = len(REPOS) + 4
-    ws.cell(row=legend_row, column=1, value="Legend:").font = Font(name="Arial", bold=True, size=9)
-    c_aop = ws.cell(row=legend_row, column=2, value=" AOP Repository ")
-    c_aop.fill = hfill(AOP_FILL)
-    c_aop.font = Font(name="Arial", bold=True, size=9, color=AOP_COLOR)
-    c_aop.alignment = center()
-    c_oop = ws.cell(row=legend_row, column=3, value=" OOP Repository ")
-    c_oop.fill = hfill(OOP_FILL)
-    c_oop.font = Font(name="Arial", bold=True, size=9, color=OOP_COLOR)
-    c_oop.alignment = center()
+    ws.cell(row=legend_row, column=1, value="Column Legend:").font = Font(name="Arial", bold=True, size=9)
+    legends = [
+        (" Raw API Metrics ", "37474F"),
+        (" Cleaned (PyDriller) ", "1B5E20"),
+        (" Cleaning Audit ", "4A148C"),
+        (" Product (lizard) ", "0D47A1"),
+        (" AOP Repository ", AOP_COLOR),
+        (" OOP Repository ", OOP_COLOR),
+    ]
+    for i, (label, color) in enumerate(legends, 2):
+        c = ws.cell(row=legend_row, column=i, value=label)
+        c.fill = hfill("FFFFFF")
+        c.font = Font(name="Arial", bold=True, size=8, color=color)
+        c.border = thin_border()
+        c.alignment = center()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -638,18 +763,20 @@ def build_paradigm_sheet(ws, paradigm):
     ws.freeze_panes = "A4"
 
     repos = [r for r in REPOS if r["paradigm"] == paradigm]
+    n_cols = len(repos) + 2
 
     # Title
-    n_cols = len(repos) + 2
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_cols)
-    t = ws.cell(row=1, column=1,
-                value=f"{paradigm} Repositories — Detailed Metrics  |  Software Engineering Research Study  |  April 2025")
+    t = ws.cell(
+        row=1, column=1,
+        value=f"{paradigm} Repositories — Detailed Metrics  |  Software Engineering Research Study  |  April 2025"
+    )
     t.font = Font(name="Arial", bold=True, size=12, color="FFFFFF")
     t.fill = hfill(color)
     t.alignment = center()
     ws.row_dimensions[1].height = 26
 
-    # Sub-header row (no merging to avoid conflicts)
+    # Sub-header
     for col_idx, label in enumerate(["Metric", "Category"], 1):
         c = ws.cell(row=2, column=col_idx, value=label)
         c.font = Font(name="Arial", bold=True, size=10, color="FFFFFF")
@@ -664,64 +791,89 @@ def build_paradigm_sheet(ws, paradigm):
         c.alignment = center()
         ws.column_dimensions[get_column_letter(c_idx)].width = 20
 
-    ws.column_dimensions["A"].width = 28
-    ws.column_dimensions["B"].width = 12
+    ws.column_dimensions["A"].width = 30
+    ws.column_dimensions["B"].width = 14
     ws.row_dimensions[2].height = 30
 
-    # Metric rows
+    # Metric rows — now includes Steps 2, 3, 5 metrics
     all_metric_display = [
         # (display label, category, key)
-        ("Stars",                         "Product", "stars"),
-        ("Forks",                         "Product", "forks"),
-        ("Size (KB)",                     "Product", "size_kb"),
-        ("Analyzed Source Files",         "Product", "analyzed_files"),
-        ("Total NLOC",                    "Product", "total_nloc"),
-        ("Total Functions / Methods",     "Product", "total_functions"),
-        ("Estimated Classes",             "Product", "estimated_classes"),
-        ("Avg Cyclomatic Complexity",     "Product", "avg_cyclomatic_complexity"),
-        ("Avg Function Length (NLOC)",    "Product", "avg_function_length_nloc"),
-        ("Total Commits",                 "Process", "total_commits"),
-        ("Total Contributors",            "Process", "total_contributors"),
-        ("Total Issues (All)",            "Process", "total_issues"),
-        ("Total Pull Requests",           "Process", "total_pull_requests"),
-        ("Total Releases",                "Process", "total_releases"),
-        ("Repo Age (Days)",               "Process", "repo_age_days"),
-        ("Commits per Month",             "Process", "commits_per_month"),
-        ("Avg Commits per Contributor",   "Process", "avg_commits_per_contributor"),
-        ("Avg Lines Added / Commit",      "Process", "avg_lines_added_per_commit"),
-        ("Avg Lines Deleted / Commit",    "Process", "avg_lines_deleted_per_commit"),
-        ("Avg Code Churn / Commit",       "Process", "avg_churn_per_commit"),
-        ("Primary Language",              "Meta",    "primary_language"),
-        ("License",                       "Meta",    "license"),
-        ("Created",                       "Meta",    "created_at"),
-        ("Last Push",                     "Meta",    "last_push"),
+        # Product (Step 2)
+        ("Stars",                              "Product",  "stars"),
+        ("Forks",                              "Product",  "forks"),
+        ("Size (KB)",                          "Product",  "size_kb"),
+        ("Analyzed Source Files",              "Product",  "analyzed_files"),
+        ("Total NLOC",                         "Product",  "total_nloc"),
+        ("Total Functions / Methods",          "Product",  "total_functions"),
+        ("Estimated Classes",                  "Product",  "estimated_classes"),
+        ("Avg Cyclomatic Complexity",          "Product",  "avg_cyclomatic_complexity"),
+        ("Avg Function Length (NLOC)",         "Product",  "avg_function_length_nloc"),
+        # Process — raw API
+        ("Total Commits (raw API)",            "Process",  "total_commits"),
+        ("Total Contributors (API)",           "Process",  "total_contributors"),
+        ("Total Issues (All)",                 "Process",  "total_issues"),
+        ("Total Pull Requests",                "Process",  "total_pull_requests"),
+        ("Total Releases",                     "Process",  "total_releases"),
+        ("Repo Age (Days)",                    "Process",  "repo_age_days"),
+        ("Commits per Month (raw)",            "Process",  "commits_per_month"),
+        ("Avg Commits per Contributor (raw)",  "Process",  "avg_commits_per_contributor"),
+        ("Avg Lines Added / Commit (raw)",     "Process",  "avg_lines_added_per_commit"),
+        ("Avg Lines Deleted / Commit (raw)",   "Process",  "avg_lines_deleted_per_commit"),
+        ("Avg Code Churn / Commit (raw)",      "Process",  "avg_churn_per_commit"),
+        # Process — PyDriller cleaned (Steps 3 + 5)
+        ("Commits (PyDriller, cleaned)",       "Cleaned",  "pydriller_commit_count"),
+        ("Distinct Authors (cleaned)",         "Cleaned",  "pydriller_distinct_authors"),
+        ("Avg Churn / Commit (cleaned)",       "Cleaned",  "pydriller_avg_churn"),
+        ("Avg Lines Added (cleaned)",          "Cleaned",  "pydriller_avg_lines_added"),
+        ("Avg Lines Deleted (cleaned)",        "Cleaned",  "pydriller_avg_lines_deleted"),
+        # Cleaning audit (Step 5)
+        ("Dropped: Merge Commits",             "Cleaning", "dropped_merge"),
+        ("Dropped: Bot Commits",               "Cleaning", "dropped_bot"),
+        ("Dropped: Tangled Commits",           "Cleaning", "dropped_tangled"),
+        # Meta
+        ("Primary Language",                   "Meta",     "primary_language"),
+        ("License",                            "Meta",     "license"),
+        ("Created",                            "Meta",     "created_at"),
+        ("Last Push",                          "Meta",     "last_push"),
     ]
 
-    cat_colors = {"Product": "E3F2FD", "Process": "E8F5E9", "Meta": "FFF3E0"}
+    cat_colors = {
+        "Product":  "E3F2FD",
+        "Process":  "FFF3E0",
+        "Cleaned":  "E8F5E9",
+        "Cleaning": "EDE7F6",
+        "Meta":     "F5F5F5",
+    }
 
     for r_idx, (label, cat, key) in enumerate(all_metric_display, 3):
         ws.row_dimensions[r_idx].height = 16
-        # Label
+        bg = cat_colors.get(cat, "FFFFFF")
+        row_bg = bg if r_idx % 2 != 0 else "FAFAFA"
+
         lc = ws.cell(row=r_idx, column=1, value=label)
-        lc.font = Font(name="Arial", bold=(cat != "Meta"), size=9)
-        lc.fill = hfill(cat_colors.get(cat, "FFFFFF"))
+        lc.font = Font(name="Arial", bold=(cat in ("Product", "Cleaned", "Cleaning")), size=9)
+        lc.fill = hfill(row_bg)
         lc.border = thin_border()
         lc.alignment = Alignment(horizontal="left", vertical="center")
-        # Category
+
         cc = ws.cell(row=r_idx, column=2, value=cat)
-        cc.font = Font(name="Arial", size=8, italic=True)
-        cc.fill = hfill(cat_colors.get(cat, "FFFFFF"))
+        cc.font = Font(name="Arial", size=8, italic=True,
+                       color=CLEAN_COLOR if cat == "Cleaning" else "444444")
+        cc.fill = hfill(row_bg)
         cc.border = thin_border()
         cc.alignment = center()
-        # Values
+
         for c_idx, repo in enumerate(repos, 3):
             val = repo.get(key, "N/A")
             vc = ws.cell(row=r_idx, column=c_idx, value=val if val is not None else "N/A")
-            vc.font = cell_font(sz=9)
-            vc.fill = hfill("FAFAFA" if r_idx % 2 == 0 else "FFFFFF")
+            vc.font = cell_font(sz=9,
+                                color=CLEAN_COLOR if cat == "Cleaning" else "000000")
+            vc.fill = hfill(row_bg)
             vc.border = thin_border()
-            vc.alignment = Alignment(horizontal="right" if isinstance(val, (int, float)) else "left",
-                                     vertical="center")
+            vc.alignment = Alignment(
+                horizontal="right" if isinstance(val, (int, float)) else "left",
+                vertical="center"
+            )
             if isinstance(val, int) and val > 999:
                 vc.number_format = "#,##0"
             elif isinstance(val, float):
@@ -744,71 +896,34 @@ def build_paradigm_sheet(ws, paradigm):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SHEET 4 — COLLECTOR SCRIPT DOCUMENTATION
+# SHEET 4 — COLLECTOR SCRIPT  (updated with Steps 2, 3, 5, 6)
 # ─────────────────────────────────────────────────────────────────────────────
 
 COLLECTOR_SCRIPT = '''#!/usr/bin/env python3
 """
 GitHub Repository Metrics Collector — AOP vs OOP Paradigm Study
 ================================================================
+Implements the full recommended collection workflow:
+  Step 1: Permanent full clones stored at /repos/{paradigm}/{repo}
+  Step 2: Per-file lizard analysis (NLOC, CC, function count)
+  Step 3: PyDriller commit history mining
+  Step 4: GitHub REST API metadata (stars, issues, PRs, releases)
+  Step 5: Data cleaning inside mine_commits()
+           - Remove merge commits  (commit.merge == True)
+           - Remove bot commits    (email contains 'bot' or 'noreply')
+           - Flag tangled commits  (>10 files AND 'refactor' in message)
+  Step 6: CSV export via pandas (one row per repository)
+
 Usage:
-    export GITHUB_TOKEN=ghp_...   # optional but recommended (5000 req/hr vs 60)
-    pip install requests pydriller lizard openpyxl
+    export GITHUB_TOKEN=ghp_...
+    pip install requests pydriller lizard openpyxl pandas
     python collect_repos.py
-
-This script collects 20 metrics per repository from two sources:
-
-1. GitHub REST API (api.github.com)
-   - Repo metadata: language, stars, forks, dates, license
-   - Total commits: pagination last-page trick (?per_page=1, read Link header)
-   - Contributors: /contributors endpoint
-   - Issues:       /issues?state=all endpoint
-   - Pull requests: /pulls?state=all endpoint
-   - Releases:     /releases endpoint
-   - Code churn:   /commits/{sha} stats for sampled commits
-
-2. Static Code Analysis (lizard)
-   - Shallow clone (git clone --depth=1)
-   - lizard.analyze() on .java files
-   - Yields: NLOC, function count, cyclomatic complexity, function length
-   - Grep for class declarations (Java)
-   - Cleanup: shutil.rmtree after analysis
-
-Repositories (10 total, 5 per paradigm):
------------------------------------------
-AOP:  spring-projects/spring-framework
-      eclipse-aspectj/aspectj
-      jbossas/jboss-as
-      quarkusio/quarkus
-      aosp-mirror/platform_frameworks_base
-
-OOP:  junit-team/junit5
-      google/guava
-      apache/commons-lang
-      ReactiveX/RxJava
-      square/retrofit
-
-Selection Criteria Enforced:
-  - Primary language represents paradigm
-  - ≥200 commits, activity after Oct 2023
-  - 1,000 – 150,000 NLOC (scoped per module where needed)
-  - Application or library (not tutorial/fork)
-  - ≥20 GitHub Issues
-  - Fully public and cloneable
-
-Rate Limiting:
-  - Authenticated: 5,000 req/hr
-  - Unauthenticated: 60 req/hr
-  - Script sleeps on 403 Retry-After header
-
-Output:
-  metrics_raw.json  — raw collected data
-  aop_vs_oop_metrics.xlsx — formatted Excel workbook
 """
 
-import requests, json, time, os, subprocess, shutil, tempfile, math, re
+import requests, json, time, os, subprocess, re, math
 import lizard
-from openpyxl import Workbook
+import pandas as pd
+from pydriller import Repository
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 HEADERS = {
@@ -817,6 +932,8 @@ HEADERS = {
 }
 if GITHUB_TOKEN:
     HEADERS["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+
+# ── GitHub API helpers ────────────────────────────────────────────────────────
 
 def gh_get(url, params=None):
     for attempt in range(3):
@@ -831,60 +948,260 @@ def gh_get(url, params=None):
     return None
 
 def get_page_count(owner, repo, endpoint, extra_params=None):
-    """Return total item count using pagination Link header trick."""
     params = {"per_page": 1}
     if extra_params:
         params.update(extra_params)
-    r = requests.get(f"https://api.github.com/repos/{owner}/{repo}/{endpoint}",
-                     headers=HEADERS, params=params, timeout=30)
+    r = requests.get(
+        f"https://api.github.com/repos/{owner}/{repo}/{endpoint}",
+        headers=HEADERS, params=params, timeout=30)
     link = r.headers.get("Link", "")
-    if \'rel="last"\' in link:
-        m = re.search(r\'page=(\\d+)>; rel="last"\', link)
+    if "rel=\\"last\\"" in link:
+        m = re.search(r"page=(\\d+)>; rel=\\"last\\"", link)
         if m: return int(m.group(1))
     return len(r.json()) if r.status_code == 200 else None
 
-def get_churn(owner, repo, sample=50):
-    commits = gh_get(f"https://api.github.com/repos/{owner}/{repo}/commits",
-                     params={"per_page": sample})
-    total_add = total_del = counted = 0
-    for c in (commits or []):
-        d = gh_get(f"https://api.github.com/repos/{owner}/{repo}/commits/{c[\'sha\']}")
-        if d and "stats" in d:
-            total_add += d["stats"].get("additions", 0)
-            total_del += d["stats"].get("deletions", 0)
-            counted += 1
-        time.sleep(0.05)
-    if not counted: return None, None, None
-    return round(total_add/counted,1), round(total_del/counted,1), round((total_add+total_del)/counted,1)
+# ── Step 1: Clone (full, permanent) ──────────────────────────────────────────
 
-def analyze_code(owner, repo, lang="Java"):
-    tmpdir = tempfile.mkdtemp()
+def clone_repo(owner, repo, paradigm):
+    dest = f"/repos/{paradigm}/{repo}"
+    if os.path.exists(dest):
+        print(f"  Already cloned, skipping: {dest}")
+    else:
+        print(f"  Cloning https://github.com/{owner}/{repo}.git -> {dest}")
+        subprocess.run(
+            ["git", "clone",
+             f"https://github.com/{owner}/{repo}.git", dest],
+            timeout=600
+        )
+    return dest
+
+# ── Step 2: Per-file lizard analysis ─────────────────────────────────────────
+
+def analyze_code(repo_path, repo_name, paradigm, lang="Java"):
     lang_ext = {"Java": [".java"], "Python": [".py"], "Kotlin": [".kt"]}
     exts = lang_ext.get(lang, [".java"])
-    try:
-        subprocess.run(["git","clone","--depth=1",
-                        f"https://github.com/{owner}/{repo}.git", tmpdir],
-                       capture_output=True, timeout=300)
-        analysis = lizard.analyze([tmpdir], exclude_pattern=["*/test*","*/vendor*"])
-        nloc = funcs = cc = 0; classes = 0
-        for fi in analysis:
-            if not any(fi.filename.endswith(e) for e in exts): continue
-            nloc += fi.nloc; funcs += len(fi.function_list)
-            for fn in fi.function_list: cc += fn.cyclomatic_complexity
-            if lang == "Java":
-                try:
-                    classes += open(fi.filename,errors="ignore").read().count("\\nclass ")
-                except: pass
-        return {"total_nloc": nloc, "total_functions": funcs,
-                "avg_cc": round(cc/funcs,2) if funcs else None,
-                "estimated_classes": classes}
-    except Exception as e:
-        return {"error": str(e)}
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
 
-# Add your repo list and call collect_metrics() for each repo
-# See full implementation in collect_repos.py
+    analysis = lizard.analyze(
+        [repo_path],
+        exclude_pattern=["*/test*", "*/vendor*", "*/node_modules*", "*/.git*"]
+    )
+
+    per_file_rows = []   # Step 2: collect per-file output
+    total_nloc = total_funcs = total_cc = total_classes = 0
+
+    for file_info in analysis:
+        if not any(file_info.filename.endswith(e) for e in exts):
+            continue
+
+        file_funcs = len(file_info.function_list)
+        file_cc    = sum(f.cyclomatic_complexity for f in file_info.function_list)
+
+        # Step 2: append one row per file
+        per_file_rows.append({
+            "repo":     repo_name,
+            "paradigm": paradigm,
+            "file":     file_info.filename,
+            "nloc":     file_info.nloc,
+            "avg_cc":   file_info.average_cyclomatic_complexity,
+            "functions": file_funcs,
+        })
+
+        total_nloc  += file_info.nloc
+        total_funcs += file_funcs
+        total_cc    += file_cc
+
+        if lang == "Java":
+            try:
+                total_classes += (
+                    open(file_info.filename, errors="ignore")
+                    .read().count("\\nclass ")
+                )
+            except Exception:
+                pass
+
+    return {
+        "analyzed_files":            len(per_file_rows),
+        "total_nloc":                total_nloc,
+        "total_functions":           total_funcs,
+        "avg_cyclomatic_complexity": round(total_cc / total_funcs, 2) if total_funcs else None,
+        "estimated_classes":         total_classes,
+        "per_file_rows":             per_file_rows,   # returned for CSV export
+    }
+
+# ── Steps 3 + 5: PyDriller mining with cleaning ──────────────────────────────
+
+def mine_commits(repo_path, repo_name):
+    adds = dels = count = 0
+    authors = set()
+    dropped = {"merge": 0, "bot": 0, "tangled": 0}
+    bot_signals = {"bot", "noreply"}
+
+    for commit in Repository(repo_path).traverse_commits():
+        # Step 5 — cleaning rules
+        if commit.merge:
+            dropped["merge"] += 1
+            continue
+        if any(s in (commit.author.email or "").lower() for s in bot_signals):
+            dropped["bot"] += 1
+            continue
+        if (len(commit.modified_files) > 10
+                and "refactor" in commit.msg.lower()):
+            dropped["tangled"] += 1
+            continue
+
+        # Step 3 — accumulate clean metrics
+        count += 1
+        adds  += commit.insertions
+        dels  += commit.deletions
+        authors.add(commit.author.email)
+
+    print(f"  Cleaned commits: {count} kept | "
+          f"dropped merge={dropped[\'merge\']} "
+          f"bot={dropped[\'bot\']} "
+          f"tangled={dropped[\'tangled\']}")
+
+    return {
+        "pydriller_commit_count":     count,
+        "pydriller_distinct_authors": len(authors),
+        "pydriller_avg_churn":        round((adds + dels) / count, 1) if count else 0,
+        "pydriller_avg_lines_added":  round(adds / count, 1) if count else 0,
+        "pydriller_avg_lines_deleted": round(dels / count, 1) if count else 0,
+        "dropped_merge":              dropped["merge"],
+        "dropped_bot":                dropped["bot"],
+        "dropped_tangled":            dropped["tangled"],
+    }
+
+# ── Step 4: GitHub API metadata ───────────────────────────────────────────────
+
+def fetch_github_metadata(owner, repo):
+    info = gh_get(f"https://api.github.com/repos/{owner}/{repo}")
+    if not info:
+        return {}
+    return {
+        "primary_language":  info.get("language"),
+        "description":       info.get("description"),
+        "created_at":        (info.get("created_at") or "")[:10],
+        "last_push":         (info.get("pushed_at") or "")[:10],
+        "license":           (info.get("license") or {}).get("spdx_id", "None"),
+        "stars":             info.get("stargazers_count", 0),
+        "forks":             info.get("forks_count", 0),
+        "size_kb":           info.get("size", 0),
+        "total_issues":      get_page_count(owner, repo, "issues", {"state": "all"}),
+        "total_pull_requests": get_page_count(owner, repo, "pulls", {"state": "all"}),
+        "total_releases":    get_page_count(owner, repo, "releases"),
+        "total_contributors": get_page_count(owner, repo, "contributors", {"anon": "true"}),
+        "total_commits":     get_page_count(owner, repo, "commits"),
+    }
+
+# ── Main collection orchestrator ──────────────────────────────────────────────
+
+def collect_metrics(paradigm, owner, repo, justification):
+    print(f"\\n{'='*60}\\n  {owner}/{repo} [{paradigm}]\\n{'='*60}")
+    metrics = {
+        "paradigm": paradigm, "owner": owner, "repo": repo,
+        "github_url": f"https://github.com/{owner}/{repo}",
+        "justification": justification,
+    }
+
+    # Step 1 — clone
+    repo_path = clone_repo(owner, repo, paradigm)
+
+    # Step 4 — GitHub API
+    print("  [4] Fetching GitHub metadata ...")
+    metrics.update(fetch_github_metadata(owner, repo))
+
+    # Steps 3 + 5 — PyDriller + cleaning
+    print("  [3+5] Mining commits with PyDriller (cleaning applied) ...")
+    metrics.update(mine_commits(repo_path, repo))
+
+    # Step 2 — lizard per-file analysis
+    print("  [2] Running lizard static analysis ...")
+    code = analyze_code(repo_path, repo, paradigm,
+                        lang=metrics.get("primary_language", "Java"))
+    per_file_rows = code.pop("per_file_rows", [])
+    metrics.update(code)
+
+    # Derived
+    tc = metrics.get("total_commits") or 1
+    cn = metrics.get("total_contributors") or 1
+    created  = metrics.get("created_at", "")
+    pushed   = metrics.get("last_push", "")
+    try:
+        from datetime import datetime
+        age = max((datetime.fromisoformat(pushed) -
+                   datetime.fromisoformat(created)).days, 1)
+        metrics["repo_age_days"]   = age
+        metrics["commits_per_month"] = round(tc / (age / 30), 1)
+    except Exception:
+        metrics["repo_age_days"]   = None
+        metrics["commits_per_month"] = None
+    metrics["avg_commits_per_contributor"] = round(tc / cn, 1)
+
+    return metrics, per_file_rows
+
+def main():
+    REPOS_CONFIG = {
+        "AOP": [
+            {"owner": "spring-projects", "repo": "spring-framework",
+             "justification": "Canonical Java AOP platform with native AspectJ integration."},
+            {"owner": "eclipse-aspectj", "repo": "aspectj",
+             "justification": "Reference AspectJ compiler and load-time weaver."},
+            {"owner": "jbossas",         "repo": "jboss-as",
+             "justification": "JBoss AS uses AOP for all container-managed concerns."},
+            {"owner": "quarkusio",       "repo": "quarkus",
+             "justification": "Build-time AOP via ArC CDI engine."},
+            {"owner": "aosp-mirror",     "repo": "platform_frameworks_base",
+             "justification": "AOP-style Binder interceptors across Android framework."},
+        ],
+        "OOP": [
+            {"owner": "junit-team",  "repo": "junit5",
+             "justification": "Pure OOP testing framework — Template Method, Strategy patterns."},
+            {"owner": "google",      "repo": "guava",
+             "justification": "Premier OOP Java utility library with deep class hierarchies."},
+            {"owner": "apache",      "repo": "commons-lang",
+             "justification": "Purely OOP Java utilities, no AOP dependencies."},
+            {"owner": "ReactiveX",   "repo": "RxJava",
+             "justification": "Observable/Observer OOP hierarchy with Decorator pattern."},
+            {"owner": "square",      "repo": "retrofit",
+             "justification": "Interface-based OOP HTTP client with CallAdapter hierarchy."},
+        ],
+    }
+
+    all_metrics   = []
+    all_per_file  = []
+
+    for paradigm, repo_list in REPOS_CONFIG.items():
+        for entry in repo_list:
+            metrics, per_file = collect_metrics(
+                paradigm=paradigm,
+                owner=entry["owner"],
+                repo=entry["repo"],
+                justification=entry["justification"],
+            )
+            all_metrics.append(metrics)
+            all_per_file.extend(per_file)
+            time.sleep(2)
+
+    # Step 6 — CSV export
+    df = pd.DataFrame(all_metrics)
+    df.drop(columns=["justification"], errors="ignore", inplace=True)
+    df.to_csv("aop_vs_oop_metrics.csv", index=False)
+    print("\\n✓ Step 6: Saved aop_vs_oop_metrics.csv")
+
+    # Per-file CSV (Step 2 output)
+    df_files = pd.DataFrame(all_per_file)
+    df_files.to_csv("aop_vs_oop_per_file_metrics.csv", index=False)
+    print("✓ Step 2: Saved aop_vs_oop_per_file_metrics.csv")
+
+    # Raw JSON backup
+    with open("metrics_raw.json", "w") as f:
+        json.dump(all_metrics, f, indent=2, default=str)
+    print("✓ Saved metrics_raw.json")
+
+    return all_metrics
+
+if __name__ == "__main__":
+    main()
 '''
 
 
@@ -894,22 +1211,29 @@ def build_script_sheet(ws):
     ws.column_dimensions["A"].width = 120
 
     ws.merge_cells("A1:A2")
-    t = ws.cell(row=1, column=1, value="Data Collector Script — aop_vs_oop_collector.py")
+    t = ws.cell(row=1, column=1,
+                value="Data Collector Script — collect_repos.py  (Steps 1–6 complete)")
     t.font = Font(name="Courier New", bold=True, size=11, color="FFFFFF")
     t.fill = hfill(HDR_DARK)
     t.alignment = center()
+    ws.row_dimensions[1].height = 22
+    ws.row_dimensions[2].height = 22
 
     for i, line in enumerate(COLLECTOR_SCRIPT.split("\n"), 3):
         c = ws.cell(row=i, column=1, value=line)
         c.font = Font(name="Courier New", size=8)
         c.alignment = Alignment(horizontal="left", vertical="center", wrap_text=False)
-        if line.strip().startswith("#") or line.strip().startswith('"""'):
+        if line.strip().startswith("#"):
+            c.font = Font(name="Courier New", size=8, color="1B5E20", italic=True)
+        elif line.strip().startswith('"""') or line.strip() == '"""':
             c.font = Font(name="Courier New", size=8, color="1565C0", italic=True)
+        elif line.strip().startswith("def ") or line.strip().startswith("class "):
+            c.font = Font(name="Courier New", size=8, bold=True)
         ws.row_dimensions[i].height = 13
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SHEET 5 — METRIC DEFINITIONS
+# SHEET 5 — METRIC DEFINITIONS  (updated with Steps 2, 3, 5 entries)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_definitions_sheet(ws):
@@ -926,19 +1250,26 @@ def build_definitions_sheet(ws):
     ws.row_dimensions[1].height = 24
 
     headers = ["Metric Name", "Category", "Type", "Collection Tool/Method", "Description"]
-    widths  = [30, 12, 12, 22, 70]
+    widths  = [32, 12, 12, 22, 75]
     for col, (h, w) in enumerate(zip(headers, widths), 1):
         set_header(ws, 2, col, h)
         ws.column_dimensions[get_column_letter(col)].width = w
     ws.row_dimensions[2].height = 20
 
-    cat_fill = {"Product": "E3F2FD", "Process": "E8F5E9"}
+    cat_fill = {
+        "Product":  "E3F2FD",
+        "Process":  "FFF3E0",
+        "Cleaned":  "E8F5E9",
+        "Cleaning": "EDE7F6",
+    }
+
     for row_idx, (name, cat, typ, tool, desc) in enumerate(METRIC_DEFS, 3):
         bg = cat_fill.get(cat, "FFFFFF")
         row_bg = bg if row_idx % 2 != 0 else "FAFAFA"
         for col, val in enumerate([name, cat, typ, tool, desc], 1):
             c = ws.cell(row=row_idx, column=col, value=val)
-            c.font = cell_font(sz=9)
+            c.font = cell_font(sz=9,
+                               color=CLEAN_COLOR if cat == "Cleaning" else "000000")
             c.fill = hfill(row_bg)
             c.border = thin_border()
             c.alignment = Alignment(
@@ -947,28 +1278,28 @@ def build_definitions_sheet(ws):
             )
         ws.row_dimensions[row_idx].height = 28 if row_idx % 5 == 0 else 16
 
-    # Notes section
     note_row = len(METRIC_DEFS) + 5
-    ws.merge_cells(
-        start_row=note_row, start_column=1,
-        end_row=note_row, end_column=5
-    )
+    ws.merge_cells(start_row=note_row, start_column=1,
+                   end_row=note_row, end_column=5)
     notes_text = (
-        "Notes:\n"
-        "• Code churn metrics are sampled from the 50 most recent commits on the default branch "
-        "using the GitHub REST API /repos/{owner}/{repo}/commits/{sha} endpoint.\n"
-        "• NLOC (Non-Comment, Non-blank Lines Of Code) is computed by lizard after a shallow clone (--depth=1). "
-        "For very large repos (Quarkus, Spring, AOSP), analysis is scoped to paradigm-representative modules.\n"
-        "• Cyclomatic complexity follows McCabe (1976): CC = number of linearly independent paths through a method.\n"
-        "• Estimated class count uses a grep-based heuristic on 'class ' declarations; "
-        "may slightly overcount for anonymous/inner classes.\n"
-        "• All GitHub process metrics retrieved April 7–8, 2025 via unauthenticated API (60 req/hr limit)."
+        "Notes on Steps 2, 3, 5, 6 additions:\n"
+        "• Step 2 (lizard per-file): get_code_metrics_from_clone() now appends one row per source file "
+        "to per_file_rows[], exported separately as aop_vs_oop_per_file_metrics.csv.\n"
+        "• Step 3 (PyDriller): mine_commits() replaces the GitHub API churn sampling. "
+        "It traverses the full local clone history for accurate insertions/deletions.\n"
+        "• Step 5 (cleaning): Three rules applied inside mine_commits() before any metric is counted — "
+        "merge commits (commit.merge==True), bot commits (email contains 'bot'/'noreply'), "
+        "tangled commits (>10 files changed AND 'refactor' in message). Dropped counts are recorded.\n"
+        "• Step 6 (CSV): main() exports aop_vs_oop_metrics.csv (one row per repo) and "
+        "aop_vs_oop_per_file_metrics.csv (one row per source file) via pandas DataFrame.to_csv().\n"
+        "• Raw vs Cleaned columns: 'raw' columns come from the GitHub API (pre-cleaning). "
+        "'cleaned' columns come from PyDriller after the Step 5 filters — use cleaned values for analysis."
     )
     nc = ws.cell(row=note_row, column=1, value=notes_text)
     nc.font = Font(name="Arial", size=8, italic=True)
     nc.alignment = left_wrap()
     nc.fill = hfill("FFF9C4")
-    ws.row_dimensions[note_row].height = 90
+    ws.row_dimensions[note_row].height = 110
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -977,31 +1308,25 @@ def build_definitions_sheet(ws):
 
 def main():
     wb = Workbook()
-    # Remove default sheet
     default = wb.active
     wb.remove(default)
 
-    # Sheet 1: All repos
     ws1 = wb.create_sheet("All Repositories")
     build_overview_sheet(ws1)
 
-    # Sheet 2: AOP
     ws2 = wb.create_sheet("AOP Repositories")
     build_paradigm_sheet(ws2, "AOP")
 
-    # Sheet 3: OOP
     ws3 = wb.create_sheet("OOP Repositories")
     build_paradigm_sheet(ws3, "OOP")
 
-    # Sheet 4: Collector Script
     ws4 = wb.create_sheet("Collector Script")
     build_script_sheet(ws4)
 
-    # Sheet 5: Metric Definitions
     ws5 = wb.create_sheet("Metric Definitions")
     build_definitions_sheet(ws5)
 
-    out_path = "/home/claude/aop_vs_oop_repo_metrics.xlsx"
+    out_path = "/home/claude/aop_vs_oop_repo_metrics_v2.xlsx"
     wb.save(out_path)
     print(f"✓ Saved: {out_path}")
     return out_path
