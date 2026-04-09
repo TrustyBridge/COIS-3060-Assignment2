@@ -34,4 +34,4 @@ in the context of GitHub-hosted open-source projects
 ## AI Tool Disclosure
 
 > Describe here any AI tools used (e.g., GitHub Copilot for scripting) and how they were used.
-
+Claude was used in order to assist in creating the data collection script, it was also used in order to more quickly find repos that would fit the requirements 
