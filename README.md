@@ -28,7 +28,8 @@ in the context of GitHub-hosted open-source projects
 ## How to Reproduce data collection, analysis, and results
 
 ```bash
-
+Claude was used in order to assist in searching for repos to study.
+The analysis was done through excel, checking data manually, and creating charts based on it
 ```
 
 ## AI Tool Disclosure
